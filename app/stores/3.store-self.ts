@@ -23,6 +23,34 @@ export const StoreSelf = defineStore('StoreSelf', () => {
   const SignOut = () => {
     ClearInfo();
   };
+
+  // ==================== FORA API ====================
+  
+  /** FORA API Token */
+  const foraToken = UseEncryptCookie<string>('fora_t', '');
+  
+  /** FORA Group ID */
+  const foraGroupId = UseEncryptCookie<string>('fora_gid', '');
+  
+  /** FORA Group Name */
+  const foraGroupName = ref('');
+  
+  /** FORA 是否登入 */
+  const isForaSignIn = computed(() => !!foraToken.value);
+  
+  /** 設定 FORA Token */
+  const SetForaToken = (token: string, groupId: string, groupName: string = '') => {
+    foraToken.value = token;
+    foraGroupId.value = groupId;
+    foraGroupName.value = groupName;
+  };
+  
+  /** FORA 登出 */
+  const ForaSignOut = () => {
+    foraToken.value = '';
+    foraGroupId.value = '';
+    foraGroupName.value = '';
+  };
   
   // -----------------------------------------------------------------------------------------------
   return {
@@ -34,5 +62,19 @@ export const StoreSelf = defineStore('StoreSelf', () => {
     SetToken,
     /** 登出 */
     SignOut,
+    
+    // FORA API
+    /** FORA API Token */
+    foraToken,
+    /** FORA Group ID */
+    foraGroupId,
+    /** FORA Group Name */
+    foraGroupName,
+    /** FORA 是否登入 */
+    isForaSignIn,
+    /** 設定 FORA Token */
+    SetForaToken,
+    /** FORA 登出 */
+    ForaSignOut,
   };
 });

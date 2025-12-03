@@ -1,9 +1,11 @@
 import * as file from './api/file';
 import * as auth from './api/auth';
+import * as fora from './api/fora';
 
 export default {
   ...file,
-  ...auth
+  ...auth,
+  ...fora,
 };
 
 

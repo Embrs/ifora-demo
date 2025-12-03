@@ -136,11 +136,71 @@
 </style>
 ```
 
-## 8. 提交流程檢查
+## 8. FORA API 使用規範
+
+### 文件參考
+- 開發文件：`.windsurf/doc/FORA_API_DOCUMENTATION.md`
+- 測試案例：`.windsurf/doc/FORA_API_TEST_CASES.md`
+- 測試頁面：`/test/fora-api`
+
+### 模組結構
+```
+app/protocol/fetch-api/api/fora/
+├── index.ts     # API 服務函式
+├── mock.ts      # Mock 測試數據
+└── type.d.ts    # 全域型別定義
+```
+
+### 使用方式
+使用全域 `$api` 呼叫 FORA API（勿直接 import）：
+
+```typescript
+// 血氧心率查詢
+const res = await $api.GetSpO2HR({
+  user_id: 'xxx',
+  start_dt: '2025-01-01 00:00:00',
+  end_dt: '2025-01-01 23:59:59',
+  mode: 0,
+});
+
+// 判斷成功
+if (res.data?.ReturnCode === 0) {
+  const dataList = res.data.Data;
+}
+```
+
+### 可用 API
+| 函式 | 說明 |
+|-----|------|
+| `$api.GetSpO2HR(params)` | 血氧心率 |
+| `$api.GetActivity(params)` | 活動分析 |
+| `$api.GetSleep(params)` | 睡眠分析 |
+| `$api.GroupLogin(params)` | 群組登入 |
+| `$api.GetGroupUserList(params)` | 病患/授權清單 |
+| `$api.GetUserFileList(params)` | 使用者檔案 |
+| `$api.GetAnalysisResult(params)` | 分析結果 |
+| `$api.GetQAList(params)` | 問答清單 |
+
+### 工具函式
+| 函式 | 說明 |
+|-----|------|
+| `$api.GetSleepPdfUrl(resultData, filename, lang)` | 睡眠 PDF URL |
+| `$api.ParseStageSummary(stageSummary)` | 解析睡眠總覽 |
+| `$api.ParseSleepScore(sleepScore)` | 解析睡眠評分 |
+| `$api.ParseHRVData(resultData)` | 解析 HRV |
+| `$api.ParseBHRVData(resultData)` | 解析 BHRV |
+
+### Mock 模式
+在 `.env` 設定 `testMode=T` 開啟 Mock 模式。
+
+---
+
+## 9. 提交流程檢查
 - 在提交 PR 或合併前，請依專案使用的套件管理工具（例如 `npm`、`pnpm`、`yarn`）執行 `run lint`，確保 `package.json` 內 `lint` 指令（`eslint .`）全數通過且無警告。
 - 若修正格式或 ESLint 報錯，請一併執行 `run lint:fix`，確認自動修正後仍無違規項目。
 - 確保關聯需求或 Issue 已在 PR 描述中連結，並註明主要變更點與測試結果，便於審查與後續追蹤。
 - 送審前請再次確認程式碼註解與文件更新，避免與規範不一致的內容進入主分支。
 
 ## 更新紀錄
+- **2025-12-03**：新增第 8 節 FORA API 使用規範，包含模組結構、使用方式、可用 API 與工具函式說明。
 - **2025-09-26**：補充協作提醒、提交流程檢查與更新紀錄章節，明確要求提交前的 QA 步驟。
