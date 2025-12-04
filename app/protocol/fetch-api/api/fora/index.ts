@@ -13,7 +13,7 @@ const IsMock = () => {
 };
 
 /** FORA API Base URL (透過 Server API Route 代理解決 CORS) */
-const FORA_BASE_URL = '/api/fora';
+const FORA_BASE_URL = '/fora-api';
 
 
 // ==================== FORA 專用請求方法 ====================

@@ -217,10 +217,6 @@ export default defineNuxtConfig({
     // Nuxt route 路由設定 ------------
     // https://nuxt.com/docs/guide/concepts/rendering#route-rules
     routeRules: {
-      // FORA API 代理：將 /v1-api/xxx 轉發到 https://www.foracare.live/xxx
-      '/v1-api/**': {
-        proxy: { to: 'https://www.foracare.live/**' }
-      },
       // '/rang-api/**': { // 自訂反向代理
       //   proxy: 'https://www.foracare.live/ForaO2API/**'
       // }
