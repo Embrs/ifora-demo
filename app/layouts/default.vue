@@ -11,6 +11,7 @@ const storeEnv = StoreEnv();
 <style lang="scss" scoped>
 // 佈局 ----
 .LayoutDefault {
+  padding: 20px;
   // TODO
 }
 
