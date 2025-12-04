@@ -148,9 +148,11 @@ interface ForaUserFileListParams {
 }
 
 interface ForaUserFileData {
-  filename: string
-  date: string
-  type: string
+  Data: string           // 檔案資料 (ex: S201912251651,...)
+  report_name: string    // 報告名稱
+  email: string          // 用戶 email
+  account_type?: number
+  user_phone_time_offset?: number
 }
 
 interface ForaUserFileListRes {

@@ -29,6 +29,18 @@ const patientList = ref<PatientInfo[]>([]);
 const selectedPatient = ref<PatientInfo | null>(null);
 const loadingPatients = ref(false);
 
+// 檔案清單 (API 實際返回格式)
+interface FileInfo {
+  Data: string;         // 檔案名稱 (ex: S201912251651,...)
+  report_name: string;  // 報告名稱
+  email: string;        // 用戶 email
+  account_type?: number;
+  user_phone_time_offset?: number;
+}
+const fileList = ref<FileInfo[]>([]);
+const selectedFile = ref<FileInfo | null>(null);
+const loadingFiles = ref(false);
+
 // iFORA O2 Web API 參數
 const webParams = reactive({
   acct: 'gmkm21@gmail.com',
@@ -271,6 +283,132 @@ const testGetQAList = async () => {
   }
 };
 
+/** 獲取使用者檔案清單 */
+const testGetUserFileList = async () => {
+  if (!loginState.isLoggedIn) {
+    addResult('使用者檔案清單', false, null, '請先登入');
+    return;
+  }
+  if (!selectedPatient.value) {
+    addResult('使用者檔案清單', false, null, '請先選擇病患');
+    return;
+  }
+
+  loadingFiles.value = true;
+  try {
+    const res = await $api.GetUserFileList({
+      group_id: loginState.groupId,
+      user_id: selectedPatient.value.user_id,
+      email: selectedPatient.value.email,
+    });
+
+    if (res.data?.ReturnCode === 0 && res.data?.Data) {
+      fileList.value = res.data.Data;
+      addResult('使用者檔案清單', true, { count: res.data.Data.length, files: res.data.Data });
+    } else {
+      fileList.value = [];
+      addResult('使用者檔案清單', false, res.data);
+    }
+  } catch (err: any) {
+    fileList.value = [];
+    addResult('使用者檔案清單', false, null, err.message);
+  } finally {
+    loadingFiles.value = false;
+  }
+};
+
+/** 獲取分析結果 */
+const testGetAnalysisResult = async (mode: '1' | '2' | '5' = '2') => {
+  if (!loginState.isLoggedIn) {
+    addResult('分析結果', false, null, '請先登入');
+    return;
+  }
+  if (!selectedPatient.value) {
+    addResult('分析結果', false, null, '請先選擇病患');
+    return;
+  }
+  if (!selectedFile.value) {
+    addResult('分析結果', false, null, '請先選擇檔案');
+    return;
+  }
+
+  const modeNames = { '1': 'PDF', '2': '數據', '5': '筆記' };
+  const filename = getFilename(selectedFile.value);
+  
+  loading.value = true;
+  try {
+    const res = await $api.GetAnalysisResult({
+      group_id: loginState.groupId,
+      user_id: selectedPatient.value.user_id,
+      email: selectedPatient.value.email,
+      filename,
+      mode,
+      Lang: webParams.lang,
+    });
+    
+    // 如果是 PDF 模式，組合 URL 並開啟圖片
+    if (mode === '1' && res.data?.ReturnCode === 0 && res.data?.resultData) {
+      const resultData = res.data.resultData;
+      const langSuffix = webParams.lang === 'tw' ? '_tw' : '_en';
+      // resultData 已包含 "SafeFile/xxx"，所以只需要加上 base URL
+      const pdfUrl = `https://www.foracare.live/${resultData}/${filename}${langSuffix}.png`;
+      
+      addResult(`分析結果 (${modeNames[mode]})`, true, {
+        ...res.data,
+        pdfUrl,
+        message: 'PDF 圖片 URL 已產生',
+      });
+      
+      // 在新窗口開啟圖片
+      window.open(pdfUrl, '_blank');
+    } else {
+      addResult(`分析結果 (${modeNames[mode]})`, res.data?.ReturnCode === 0, res.data);
+    }
+  } catch (err: any) {
+    addResult(`分析結果 (${modeNames[mode]})`, false, null, err.message);
+  } finally {
+    loading.value = false;
+  }
+};
+
+/** 選擇檔案 */
+const onSelectFile = (file: FileInfo | null) => {
+  selectedFile.value = file;
+};
+
+/** 格式化檔案顯示名稱 */
+const formatFileLabel = (file: FileInfo) => {
+  // Data 格式: "S201912251651,..." 或 "B201912251655,..." 或 "H202507301115,..."
+  const parts = file.Data.split(',');
+  const filename = parts[0] || file.Data;
+  const typeMap: Record<string, string> = {
+    'S': '睡眠報告',
+    'B': 'BHRV 共振呼吸',
+    'H': 'HRV 自律神經',
+  };
+  const prefix = filename.charAt(0);
+  const type = typeMap[prefix] || '報告';
+  return `${filename} - ${type} (${file.report_name})`;
+};
+
+/** 取得檔案名稱 */
+const getFilename = (file: FileInfo) => {
+  const parts = file.Data.split(',');
+  return parts[0] || file.Data;
+};
+
+/** 取得檔案類型前綴 */
+const getFilePrefix = (file: FileInfo | null) => {
+  if (!file) return '';
+  const filename = getFilename(file);
+  return filename.charAt(0);
+};
+
+/** 是否支援 PDF（只有睡眠報告 S 開頭） */
+const supportsPdf = computed(() => {
+  return getFilePrefix(selectedFile.value) === 'S';
+});
+
 const logout = () => {
   loginState.isLoggedIn = false;
   loginState.groupId = '';
@@ -280,6 +418,10 @@ const logout = () => {
   // 清除病患清單和選擇
   patientList.value = [];
   selectedPatient.value = null;
+  
+  // 清除檔案清單和選擇
+  fileList.value = [];
+  selectedFile.value = null;
   
   // 清除 StoreSelf 中的 FORA token
   storeSelf.ForaSignOut();
@@ -364,6 +506,83 @@ onMounted(() => {
             :disabled="!loginState.isLoggedIn"
           ) 問答清單
 
+      //- 進階測試區域 (需要選擇病患)
+      .form-section(v-if="loginState.isLoggedIn")
+        h3 進階測試 (使用者檔案與分析結果)
+        
+        //- 病患選擇
+        .patient-file-selector
+          el-form(label-width="100px")
+            el-form-item(label="選擇病患")
+              el-select(
+                v-model="selectedPatient"
+                value-key="user_id"
+                placeholder="請選擇病患"
+                clearable
+                filterable
+                :loading="loadingPatients"
+                style="width: 100%"
+                @change="onSelectPatient"
+              )
+                el-option(
+                  v-for="patient in patientList"
+                  :key="patient.user_id"
+                  :label="formatPatientLabel(patient)"
+                  :value="patient"
+                )
+                  span {{ formatPatientLabel(patient) }}
+            
+            //- 獲取檔案清單按鈕
+            el-form-item(label="檔案清單")
+              .button-group
+                el-button(
+                  type="primary"
+                  @click="testGetUserFileList"
+                  :loading="loadingFiles"
+                  :disabled="!selectedPatient"
+                ) 獲取使用者檔案清單
+            
+            //- 檔案選擇
+            el-form-item(label="選擇檔案" v-if="fileList.length > 0")
+              el-select(
+                v-model="selectedFile"
+                value-key="Data"
+                placeholder="請選擇檔案"
+                clearable
+                filterable
+                :loading="loadingFiles"
+                style="width: 100%"
+                @change="onSelectFile"
+              )
+                el-option(
+                  v-for="file in fileList"
+                  :key="file.Data"
+                  :label="formatFileLabel(file)"
+                  :value="file"
+                )
+            
+            //- 分析結果按鈕
+            el-form-item(label="分析結果" v-if="selectedFile")
+              .button-group
+                el-button(
+                  v-if="supportsPdf"
+                  type="primary"
+                  @click="testGetAnalysisResult('1')"
+                  :loading="loading"
+                ) PDF 報告
+                el-button(
+                  type="primary"
+                  @click="testGetAnalysisResult('2')"
+                  :loading="loading"
+                ) {{ supportsPdf ? '睡眠數據' : getFilePrefix(selectedFile) === 'H' ? 'HRV 數據' : 'BHRV 數據' }}
+                el-button(
+                  type="primary"
+                  @click="testGetAnalysisResult('5')"
+                  :loading="loading"
+                ) 筆記
+              el-tag(v-if="!supportsPdf" type="warning" style="margin-top: 8px")
+                | 注意：HRV/BHRV 報告不支援 PDF 下載
+
     //- FORA Ring Client API
     el-tab-pane(label="FORA Ring API" name="ring")
       .form-section
@@ -391,10 +610,7 @@ onMounted(() => {
               :label="formatPatientLabel(patient)"
               :value="patient"
             )
-              .patient-option
-                span.patient-name {{ patient.name || '未命名' }}
-                span.patient-info(v-if="patient.med_rec_no") 病歷號: {{ patient.med_rec_no }}
-                span.patient-email {{ patient.email }}
+              span {{ formatPatientLabel(patient) }}
           
           el-button(
             type="primary"
@@ -511,6 +727,12 @@ onMounted(() => {
     margin: 0 0 12px;
     color: var(--el-color-primary);
   }
+}
+
+.patient-file-selector {
+  padding: 16px;
+  background: var(--el-color-info-light-9);
+  border-radius: 8px;
 }
 
 .patient-option {

@@ -70,19 +70,19 @@ const ForaPost = async <T>(url: string, body: object, useToken = true): Promise<
 /** 血氧心率 (mode=0) */
 export const GetSpO2HR = (params: ForaSpO2HRParams) => {
   if (IsMock()) return mock.GetSpO2HR();
-  return ForaPost<ForaSpO2HRRes>(`${FORA_BASE_URL}/ForaO2API`, { ...params, mode: 0 });
+  return ForaPost<ForaSpO2HRRes>(`${FORA_BASE_URL}/ForaO2API/ClientRingDataAES`, { ...params, mode: 0 });
 };
 
 /** 活動分析 (mode=1) */
 export const GetActivity = (params: ForaActivityParams) => {
   if (IsMock()) return mock.GetActivity();
-  return ForaPost<ForaActivityRes>(`${FORA_BASE_URL}/ForaO2API`, { ...params, mode: 1 });
+  return ForaPost<ForaActivityRes>(`${FORA_BASE_URL}/ForaO2API/ClientRingDataAES`, { ...params, mode: 1 });
 };
 
 /** 睡眠分析 (mode=3) */
 export const GetSleep = (params: ForaSleepParams) => {
   if (IsMock()) return mock.GetSleep();
-  return ForaPost<ForaSleepRes>(`${FORA_BASE_URL}/ForaO2API`, { ...params, mode: 3 });
+  return ForaPost<ForaSleepRes>(`${FORA_BASE_URL}/ForaO2API/ClientRingDataAES`, { ...params, mode: 3 });
 };
 
 // ==================== iFORA O2 Web API ====================

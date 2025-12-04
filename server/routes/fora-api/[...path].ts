@@ -5,14 +5,30 @@
 
 import { createCipheriv, createDecipheriv } from 'crypto';
 
-// AES-128-ECB 金鑰 (16 bytes)
-const AES_KEY = Buffer.from([
+// iFORA O2 Web API 金鑰 (TaidocWeb)
+const AES_KEY_WEB = Buffer.from([
   67, 34, 119, 18, 83, 57, 112, 9,
   73, 50, 81, 120, 24, 54, 82, 101
 ]);
 
+// FORA Ring Client API 金鑰 (ForaO2API/ClientRingDataAES)
+const AES_KEY_RING = Buffer.from([
+  0x49, 0x32, 0x56, 0x28, 0x66, 0x72, 0x46, 0x26,
+  0x39, 0x15, 0x62, 0x46, 0x09, 0x74, 0x23, 0x26
+]);
+
+/** 根據路徑選擇正確的 AES 金鑰 */
+function getAesKey(path: string): Buffer {
+  // ForaO2API 開頭的路徑使用 Ring API 金鑰
+  if (path.startsWith('ForaO2API')) {
+    return AES_KEY_RING;
+  }
+  // 其他（TaidocWeb）使用 Web API 金鑰
+  return AES_KEY_WEB;
+}
+
 /** AES-128-ECB 加密 (Zero Padding) */
-function aesEncrypt(data: string): string {
+function aesEncrypt(data: string, key: Buffer): string {
   // 將數據轉為 Buffer 並補齊到 16 的倍數 (Zero Padding)
   const dataBuffer = Buffer.from(data, 'utf8');
   const blockSize = 16;
@@ -20,7 +36,7 @@ function aesEncrypt(data: string): string {
   const paddedBuffer = Buffer.alloc(paddedLength, 0);
   dataBuffer.copy(paddedBuffer);
   
-  const cipher = createCipheriv('aes-128-ecb', AES_KEY, null);
+  const cipher = createCipheriv('aes-128-ecb', key, null);
   cipher.setAutoPadding(false); // 使用自定義 padding
   let encrypted = cipher.update(paddedBuffer);
   encrypted = Buffer.concat([encrypted, cipher.final()]);
@@ -28,10 +44,10 @@ function aesEncrypt(data: string): string {
 }
 
 /** AES-128-ECB 解密 */
-function aesDecrypt(encryptedData: Buffer): string {
+function aesDecrypt(encryptedData: Buffer, key: Buffer): string {
   try {
     // 嘗試使用 PKCS7 padding
-    const decipher = createDecipheriv('aes-128-ecb', AES_KEY, null);
+    const decipher = createDecipheriv('aes-128-ecb', key, null);
     decipher.setAutoPadding(true);
     let decrypted = decipher.update(encryptedData);
     decrypted = Buffer.concat([decrypted, decipher.final()]);
@@ -41,7 +57,7 @@ function aesDecrypt(encryptedData: Buffer): string {
     
     // 嘗試使用 Zero padding (手動移除)
     try {
-      const decipher = createDecipheriv('aes-128-ecb', AES_KEY, null);
+      const decipher = createDecipheriv('aes-128-ecb', key, null);
       decipher.setAutoPadding(false);
       let decrypted = decipher.update(encryptedData);
       decrypted = Buffer.concat([decrypted, decipher.final()]);
@@ -64,6 +80,10 @@ export default defineEventHandler(async (event) => {
   const path = getRouterParam(event, 'path') || '';
   const targetUrl = `https://www.foracare.live/${path}`;
   
+  // 根據路徑選擇正確的 AES 金鑰
+  const aesKey = getAesKey(path);
+  const apiType = path.startsWith('ForaO2API') ? 'Ring' : 'Web';
+  
   // 讀取請求 body
   const body = await readBody(event);
   
@@ -83,11 +103,11 @@ export default defineEventHandler(async (event) => {
     }
     
     // 加密請求 body
-    const encryptedBody = aesEncrypt(JSON.stringify(body));
+    const encryptedBody = aesEncrypt(JSON.stringify(body), aesKey);
     
-    console.log('[FORA Proxy]', 'POST', targetUrl);
-    console.log('[FORA Proxy] Original Body:', JSON.stringify(body));
-    console.log('[FORA Proxy] Encrypted Body:', encryptedBody);
+    console.log(`[FORA Proxy ${apiType}]`, 'POST', targetUrl);
+    console.log(`[FORA Proxy ${apiType}] Original Body:`, JSON.stringify(body));
+    console.log(`[FORA Proxy ${apiType}] Encrypted Body:`, encryptedBody);
     
     // 嘗試以 raw bytes 發送
     const encryptedBytes = Buffer.from(encryptedBody, 'base64');
@@ -104,7 +124,7 @@ export default defineEventHandler(async (event) => {
     
     // 解密回應
     const encryptedResponse = Buffer.from(response._data as ArrayBuffer);
-    const decryptedResponse = aesDecrypt(encryptedResponse);
+    const decryptedResponse = aesDecrypt(encryptedResponse, aesKey);
     
     console.log('[FORA Proxy] Decrypted Response:', decryptedResponse);
     

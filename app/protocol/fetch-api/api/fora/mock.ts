@@ -118,8 +118,30 @@ export const GetUserFileList = () => {
   const data: ForaUserFileListRes = {
     ReturnCode: 0,
     Data: [
-      { filename: 'S202501011200', date: '2025-01-01', type: 'S' },
-      { filename: 'H202501011300', date: '2025-01-01', type: 'H' },
+      {
+        // 睡眠報告 (S 開頭) - 支援 PDF
+        Data: 'S202501011200,165105,165132,96.0,0.0,0.0,0.0,28,96.1,測試用戶,0.00',
+        report_name: '測試用戶',
+        email: 'test@example.com',
+        account_type: 0,
+        user_phone_time_offset: 0,
+      },
+      {
+        // HRV 自律神經報告 (H 開頭) - 不支援 PDF
+        Data: 'H202501011300,hrv數據...',
+        report_name: '測試用戶',
+        email: 'test@example.com',
+        account_type: 0,
+        user_phone_time_offset: 0,
+      },
+      {
+        // BHRV 共振呼吸報告 (B 開頭) - 不支援 PDF
+        Data: 'B202501011400,84.1456,0.5136,0.445,測試用戶',
+        report_name: '測試用戶',
+        email: 'test@example.com',
+        account_type: 0,
+        user_phone_time_offset: 0,
+      },
     ],
   };
   return mockRes.CreateRes(data);
