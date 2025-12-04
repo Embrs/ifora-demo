@@ -292,16 +292,17 @@ const hrChartOption = computed(() => {
               .stat-value(:class="getSpO2Level(spo2Stats.min).type") {{ spo2Stats.min }}%
           .stat-row
             .stat-item
-              .stat-label &lt;95% 次數
+              .stat-label &lt;95% 低於
               .stat-value.warning {{ spo2Stats.below95Count }}
-                small  ({{ spo2Stats.below95Percent }}%)
+                small  次 ({{ spo2Stats.below95Percent }}%)
             .stat-item
-              .stat-label &lt;90% 次數
+              .stat-label &lt;90% 低於
               .stat-value.danger {{ spo2Stats.below90Count }}
-                small  ({{ spo2Stats.below90Percent }}%)
+                small  次 ({{ spo2Stats.below90Percent }}%)
             .stat-item
-              .stat-label 數據點數
+              .stat-label 數據筆數
               .stat-value {{ spo2Stats.totalCount }}
+                small  筆
 
       .stats-card.hr-stats
         .stats-header
@@ -320,14 +321,17 @@ const hrChartOption = computed(() => {
               .stat-value(:class="getHRLevel(hrStats.min).type") {{ hrStats.min }} bpm
           .stat-row
             .stat-item
-              .stat-label 偏慢 (&lt;60)
+              .stat-label 偏慢 (&lt;60 bpm)
               .stat-value.info {{ hrStats.lowCount }}
+                small  次
             .stat-item
-              .stat-label 正常 (60-100)
+              .stat-label 正常 (60-100 bpm)
               .stat-value.success {{ hrStats.normalCount }}
+                small  次
             .stat-item
-              .stat-label 偏快 (&gt;100)
+              .stat-label 偏快 (&gt;100 bpm)
               .stat-value.warning {{ hrStats.highCount }}
+                small  次
 
     //- 圖表區
     .charts-grid
