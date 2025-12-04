@@ -99,18 +99,101 @@ if (res.data?.ReturnCode === 0) {
 
 ## 加密機制
 
-所有 API 使用 **AES-128-ECB** 加密：
+所有 API 使用 **AES-128-ECB** 加密，但 **兩套 API 使用不同的金鑰**：
+
+### AES 金鑰
+
+| API 系統 | 金鑰 (16 bytes) |
+|---------|-----------------|
+| **iFORA O2 Web API** (TaidocWeb) | `[67, 34, 119, 18, 83, 57, 112, 9, 73, 50, 81, 120, 24, 54, 82, 101]` |
+| **FORA Ring Client API** (ForaO2API) | `[0x49, 0x32, 0x56, 0x28, 0x66, 0x72, 0x46, 0x26, 0x39, 0x15, 0x62, 0x46, 0x09, 0x74, 0x23, 0x26]` |
 
 ```typescript
-// 加密設定
-const AES_KEY = new Uint8Array([
-  0x31, 0x26, 0x64, 0x23, 0x15, 0x62, 0x46, 0x09,
-  0x74, 0x23, 0x26
+// iFORA O2 Web API 金鑰 (TaidocWeb)
+const AES_KEY_WEB = Buffer.from([
+  67, 34, 119, 18, 83, 57, 112, 9,
+  73, 50, 81, 120, 24, 54, 82, 101
 ]);
 
-// 演算法：AES-128-ECB
-// Padding：ZeroPadding
-// IV：無
+// FORA Ring Client API 金鑰 (ForaO2API/ClientRingDataAES)
+const AES_KEY_RING = Buffer.from([
+  0x49, 0x32, 0x56, 0x28, 0x66, 0x72, 0x46, 0x26,
+  0x39, 0x15, 0x62, 0x46, 0x09, 0x74, 0x23, 0x26
+]);
+```
+
+### 加密設定
+
+- **演算法**：AES-128-ECB
+- **Padding**：ZeroPadding（加密時補齊到 16 的倍數）
+- **IV**：無（ECB 模式不需要）
+
+---
+
+## 代理服務器架構
+
+由於瀏覽器 CORS 限制，本專案使用 **Nuxt Server Route** 作為代理，處理 AES 加解密並轉發請求。
+
+### 檔案結構
+
+```
+server/routes/fora-api/
+└── [...path].ts   # 動態路由代理
+```
+
+### 代理路由
+
+| 前端請求路徑 | 代理轉發目標 | 使用金鑰 |
+|-------------|-------------|---------|
+| `/fora-api/TaidocWeb/*` | `https://www.foracare.live/TaidocWeb/*` | AES_KEY_WEB |
+| `/fora-api/ForaO2API/*` | `https://www.foracare.live/ForaO2API/*` | AES_KEY_RING |
+
+### 代理流程
+
+```
+1. 前端發送請求到 /fora-api/{path}
+       ↓
+2. 代理根據 path 選擇正確的 AES 金鑰
+       ↓
+3. 使用 AES-128-ECB + ZeroPadding 加密請求 body
+       ↓
+4. 轉發加密後的請求到 FORA 伺服器
+       ↓
+5. 接收加密的回應並解密
+       ↓
+6. 返回解密後的 JSON 給前端
+```
+
+### 代理實現 (`server/routes/fora-api/[...path].ts`)
+
+```typescript
+// 根據路徑選擇正確的 AES 金鑰
+function getAesKey(path: string): Buffer {
+  if (path.startsWith('ForaO2API')) {
+    return AES_KEY_RING;  // FORA Ring Client API
+  }
+  return AES_KEY_WEB;     // iFORA O2 Web API
+}
+
+// AES-128-ECB 加密 (Zero Padding)
+function aesEncrypt(data: string, key: Buffer): string {
+  const dataBuffer = Buffer.from(data, 'utf8');
+  const blockSize = 16;
+  const paddedLength = Math.ceil(dataBuffer.length / blockSize) * blockSize;
+  const paddedBuffer = Buffer.alloc(paddedLength, 0);
+  dataBuffer.copy(paddedBuffer);
+  
+  const cipher = createCipheriv('aes-128-ecb', key, null);
+  cipher.setAutoPadding(false);
+  let encrypted = cipher.update(paddedBuffer);
+  encrypted = Buffer.concat([encrypted, cipher.final()]);
+  return encrypted.toString('base64');
+}
+
+// AES-128-ECB 解密（支援 PKCS7 和 ZeroPadding）
+function aesDecrypt(encryptedData: Buffer, key: Buffer): string {
+  // 優先嘗試 PKCS7，失敗則嘗試 ZeroPadding
+}
 ```
 
 ---

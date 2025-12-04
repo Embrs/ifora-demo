@@ -56,6 +56,29 @@ const loginState = reactive({
   groupName: '',
 });
 
+// 圖表數據 (FORA Ring API)
+const chartData = reactive({
+  spo2hr: [] as any[],
+  activity: [] as any[],
+  sleep: [] as any[],
+});
+const showChart = ref(false);
+
+// Web API 圖表數據
+const webSleepData = ref<string[]>([]);
+const showWebSleepChart = ref(false);
+
+// HRV 數據圖表
+const webHrvData = ref<string[]>([]);
+const showWebHrvChart = ref(false);
+
+// BHRV 數據圖表
+const webBhrvData = ref<string[]>([]);
+const showWebBhrvChart = ref(false);
+
+// 當前報告類型
+const currentReportType = ref<'S' | 'H' | 'B' | ''>('');
+
 // ==================== 測試方法 ====================
 
 const addResult = (title: string, success: boolean, data: any, error?: string) => {
@@ -84,6 +107,11 @@ const testSpO2HR = async () => {
       end_dt: ringParams.endDt,
       mode: 0,
     });
+    // 保存數據到圖表
+    if (res.data?.ReturnCode === 0 && res.data?.Data) {
+      chartData.spo2hr = res.data.Data;
+      showChart.value = true;
+    }
     addResult('血氧心率 (mode=0)', res.data?.ReturnCode === 0, res.data);
   } catch (err: any) {
     addResult('血氧心率 (mode=0)', false, null, err.message);
@@ -101,6 +129,11 @@ const testActivity = async () => {
       end_dt: ringParams.endDt,
       mode: 1,
     });
+    // 保存數據到圖表
+    if (res.data?.ReturnCode === 0 && res.data?.Data) {
+      chartData.activity = res.data.Data;
+      showChart.value = true;
+    }
     addResult('活動分析 (mode=1)', res.data?.ReturnCode === 0, res.data);
   } catch (err: any) {
     addResult('活動分析 (mode=1)', false, null, err.message);
@@ -118,6 +151,11 @@ const testSleep = async () => {
       end_dt: ringParams.endDt,
       mode: 3,
     });
+    // 保存數據到圖表
+    if (res.data?.ReturnCode === 0 && res.data?.Data) {
+      chartData.sleep = res.data.Data;
+      showChart.value = true;
+    }
     addResult('睡眠分析 (mode=3)', res.data?.ReturnCode === 0, res.data);
 
     // 解析睡眠數據
@@ -136,6 +174,12 @@ const testSleep = async () => {
 };
 
 const testAllRingApis = async () => {
+  // 清空圖表數據
+  chartData.spo2hr = [];
+  chartData.activity = [];
+  chartData.sleep = [];
+  showChart.value = false;
+  
   await testSpO2HR();
   await testActivity();
   await testSleep();
@@ -196,6 +240,12 @@ const formatPatientLabel = (patient: PatientInfo) => {
 const storeSelf = StoreSelf();
 
 const testLogin = async () => {
+  // 如果已經登入，詢問是否要重新登入
+  if (loginState.isLoggedIn || storeSelf.isForaSignIn) {
+    addResult('登入提示', true, { message: '已登入，如需重新登入請先登出' });
+    return;
+  }
+  
   loading.value = true;
   try {
     const res = await $api.GroupLogin({
@@ -361,6 +411,31 @@ const testGetAnalysisResult = async (mode: '1' | '2' | '5' = '2') => {
       
       // 在新窗口開啟圖片
       window.open(pdfUrl, '_blank');
+    } else if (mode === '2' && res.data?.ReturnCode === 0 && res.data?.resultData) {
+      // 數據模式，根據報告類型保存數據並顯示對應圖表
+      const resultData = res.data.resultData;
+      const dataArray = Array.isArray(resultData) ? resultData : [resultData];
+      const filePrefix = getFilePrefix(selectedFile.value);
+      
+      // 重置所有圖表狀態
+      showWebSleepChart.value = false;
+      showWebHrvChart.value = false;
+      showWebBhrvChart.value = false;
+      currentReportType.value = filePrefix as 'S' | 'H' | 'B';
+      
+      // 根據報告類型顯示對應圖表
+      if (filePrefix === 'S') {
+        webSleepData.value = dataArray;
+        showWebSleepChart.value = true;
+      } else if (filePrefix === 'H') {
+        webHrvData.value = dataArray;
+        showWebHrvChart.value = true;
+      } else if (filePrefix === 'B') {
+        webBhrvData.value = dataArray;
+        showWebBhrvChart.value = true;
+      }
+      
+      addResult(`分析結果 (${modeNames[mode]})`, true, res.data);
     } else {
       addResult(`分析結果 (${modeNames[mode]})`, res.data?.ReturnCode === 0, res.data);
     }
@@ -432,11 +507,23 @@ const logout = () => {
 // ==================== 初始化 ====================
 
 // 設定預設日期 (今日)
-onMounted(() => {
+onMounted(async () => {
   const today = new Date();
   const formatDate = (d: Date) => d.toISOString().split('T')[0];
   ringParams.startDt = `${formatDate(today)} 00:00:00`;
   ringParams.endDt = `${formatDate(today)} 23:59:59`;
+  
+  // 檢查是否已登入（從 storeSelf 恢復登入狀態）
+  if (storeSelf.isForaSignIn) {
+    loginState.isLoggedIn = true;
+    loginState.groupId = storeSelf.foraGroupId;
+    loginState.token = storeSelf.foraToken;
+    loginState.groupName = storeSelf.foraGroupName;
+    
+    // 自動獲取病患清單
+    await fetchPatientList();
+    addResult('自動恢復登入', true, { groupName: storeSelf.foraGroupName });
+  }
 });
 </script>
 
@@ -582,6 +669,27 @@ onMounted(() => {
                 ) 筆記
               el-tag(v-if="!supportsPdf" type="warning" style="margin-top: 8px")
                 | 注意：HRV/BHRV 報告不支援 PDF 下載
+        
+        //- 睡眠數據圖表
+        ChartWebSleepDataChart(
+          v-if="showWebSleepChart && webSleepData.length > 0"
+          :data="webSleepData"
+          :title="`${selectedPatient?.name || ''} 睡眠監測數據`"
+        )
+        
+        //- HRV 數據圖表
+        ChartWebHrvDataChart(
+          v-if="showWebHrvChart && webHrvData.length > 0"
+          :data="webHrvData"
+          :title="`${selectedPatient?.name || ''} HRV 自律神經數據`"
+        )
+        
+        //- BHRV 數據圖表
+        ChartWebBhrvDataChart(
+          v-if="showWebBhrvChart && webBhrvData.length > 0"
+          :data="webBhrvData"
+          :title="`${selectedPatient?.name || ''} BHRV 共振呼吸數據`"
+        )
 
     //- FORA Ring Client API
     el-tab-pane(label="FORA Ring API" name="ring")
@@ -639,9 +747,25 @@ onMounted(() => {
               :disabled="!loginState.isLoggedIn"
             )
           el-form-item(label="開始時間")
-            el-input(v-model="ringParams.startDt" placeholder="YYYY-MM-DD HH:mm:ss")
+            el-date-picker(
+              v-model="ringParams.startDt"
+              type="datetime"
+              placeholder="選擇開始時間"
+              format="YYYY-MM-DD HH:mm:ss"
+              value-format="YYYY-MM-DD HH:mm:ss"
+              :default-time="new Date(2000, 0, 1, 0, 0, 0)"
+              style="width: 100%"
+            )
           el-form-item(label="結束時間")
-            el-input(v-model="ringParams.endDt" placeholder="YYYY-MM-DD HH:mm:ss")
+            el-date-picker(
+              v-model="ringParams.endDt"
+              type="datetime"
+              placeholder="選擇結束時間"
+              format="YYYY-MM-DD HH:mm:ss"
+              value-format="YYYY-MM-DD HH:mm:ss"
+              :default-time="new Date(2000, 0, 1, 23, 59, 59)"
+              style="width: 100%"
+            )
 
         h3 測試項目
         .button-group
@@ -653,6 +777,25 @@ onMounted(() => {
             | 睡眠分析 (mode=3)
           el-button(type="success" @click="testAllRingApis" :loading="loading" :disabled="!ringParams.userId")
             | 全部測試
+        
+        //- 圖表顯示區
+        .charts-section(v-if="showChart")
+          h3 數據圖表
+          
+          //- 血氧心率圖表
+          el-collapse(v-if="chartData.spo2hr.length")
+            el-collapse-item(title="血氧心率趨勢" name="spo2hr")
+              ChartSpO2HRChart(:data="chartData.spo2hr" :title="`${selectedPatient?.name || ''} 血氧心率`")
+          
+          //- 活動分析圖表
+          el-collapse(v-if="chartData.activity.length")
+            el-collapse-item(title="活動分析" name="activity")
+              ChartActivityChart(:data="chartData.activity" :title="`${selectedPatient?.name || ''} 活動分析`")
+          
+          //- 睡眠分析圖表
+          el-collapse(v-if="chartData.sleep.length")
+            el-collapse-item(title="睡眠分析" name="sleep")
+              ChartSleepChart(:data="chartData.sleep" :title="`${selectedPatient?.name || ''} 睡眠分析`")
 
   //- 測試結果
   .results-section
@@ -754,6 +897,22 @@ onMounted(() => {
   .patient-email {
     font-size: 12px;
     color: var(--el-text-color-secondary);
+  }
+}
+
+.charts-section {
+  margin-top: 24px;
+  
+  h3 {
+    margin-bottom: 16px;
+  }
+  
+  .el-collapse {
+    margin-bottom: 16px;
+  }
+  
+  .el-collapse-item__content {
+    padding-top: 16px;
   }
 }
 
