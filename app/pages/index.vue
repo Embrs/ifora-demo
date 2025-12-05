@@ -43,8 +43,8 @@ const loadingFiles = ref(false);
 
 // iFORA O2 Web API 參數
 const webParams = reactive({
-  acct: 'gmkm21@gmail.com',
-  pwd: '1qaz@WSX',
+  acct: '',
+  pwd: '',
   lang: 'tw' as 'tw' | 'en',
 });
 
