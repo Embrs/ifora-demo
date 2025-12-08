@@ -538,7 +538,7 @@ onMounted(async () => {
   //- Tabs
   el-tabs(v-model="activeTab")
     //- iFORA O2 Web API (登入優先)
-    el-tab-pane(label="iFORA O2 Web API" name="web")
+    el-tab-pane(label="iFORA O2 Web API (血氧機)" name="web")
       .form-section
         h3 登入參數
         el-form(label-width="100px")
@@ -692,7 +692,7 @@ onMounted(async () => {
         )
 
     //- FORA Ring Client API
-    el-tab-pane(label="FORA Ring API" name="ring")
+    el-tab-pane(label="FORA Ring API (戒指)" name="ring")
       .form-section
         //- 病患選擇區域
         .patient-selector(v-if="loginState.isLoggedIn")
